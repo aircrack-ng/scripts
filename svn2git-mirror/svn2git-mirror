@@ -1,0 +1,99 @@
+#!/bin/bash
+#
+# By: Carlos Alberto Lopez Perez <clopez@igalia.com>
+# Based on:
+# http://danielpocock.com/automatically-mirroring-svn-repositories-to-git-and-github
+#
+set -e
+# Set here the config
+MYDIR=$(dirname $(readlink -f $0))
+PROJECT_ROOT="${MYDIR}/aircrack-ng"
+AUTHORS_FILE="${MYDIR}/authors.txt"
+SVN_REPO="http://trac.aircrack-ng.org/svn/"
+GIT_REPO="git@github.com:aircrack-ng/aircrack-ng.git"
+SVN_LAYOUT="-T trunk -b branch -t tags"
+
+#Lockfile
+myname=${0##*/}
+LOCKDIR="/var/lock/${myname}"
+LOCKFILE="${LOCKDIR}/lock"
+LOCKTEMP="${LOCKDIR}/tmp"
+mkdir -p "${LOCKDIR}"
+touch "${LOCKTEMP}"
+
+function lockfile_error {
+  echo >&2 "Warning: $LOCKFILE present, not running ${myname}"
+	exit 1
+}
+
+
+if [[ -e "${LOCKFILE}" ]]; then
+	lockfile_error
+else
+	# Fixes race conditions
+	ln "$LOCKTEMP" "$LOCKFILE" || lockfile_error
+fi
+
+# The traps are set after lockfile checking to avoid clean the lockfile
+# when a lockfile_error happens
+#
+trap "rm -f ${LOCKFILE}" SIGINT SIGKILL SIGQUIT SIGSEGV SIGPIPE SIGALRM SIGTERM EXIT
+
+if [[ ! -d "${PROJECT_ROOT}" ]]; then
+	mkdir -p "${PROJECT_ROOT}"
+fi
+
+cd "${PROJECT_ROOT}"
+
+SVN_CLONE="${PROJECT_ROOT}/svn-clone"
+GIT_BARE=$(mktemp -d)
+
+if [[ ! -d "${SVN_CLONE}" ]]; then
+	echo "First run, doing a full git-svn clone, this may take a while..."
+	git svn clone \
+		"${SVN_REPO}" \
+		-A "${AUTHORS_FILE}" \
+		${SVN_LAYOUT} \
+		"${SVN_CLONE}"
+	cd "${SVN_CLONE}"
+else
+	echo "git-svn clone already exists, doing a rebase..."
+	cd "${SVN_CLONE}"
+	git remote rm bare || echo "failed to delete remote:bare, proceeding anyway"
+	git svn rebase \
+		--fetch-all \
+		-A "${AUTHORS_FILE}"
+fi
+
+git remote add bare "${GIT_BARE}"
+git config remote.bare.push 'refs/remotes/*:refs/heads/*'
+
+cd "${GIT_BARE}"
+git init --bare .
+git symbolic-ref HEAD refs/heads/trunk
+
+cd "${SVN_CLONE}"
+git push bare
+
+cd "${GIT_BARE}"
+git branch -m trunk master
+git for-each-ref --format='%(refname)' refs/heads/tags | \
+	cut -d / -f 4 | \
+	while read ref; do
+		# This is a hack to avoid having that ugly "bla" tag
+		# That I'm not sure where it comes but better trash it
+		if [[ "$ref" != "bla" ]]; then
+			git tag "$ref" "refs/heads/tags/$ref"
+		fi
+		git branch -D "tags/$ref"
+	done
+# Same for test branch, is hack to avoid pushing it (is empty)
+git branch -D "test" || true
+git remote add origin "${GIT_REPO}"
+git config branch.master.remote origin
+git config branch.master.merge refs/heads/master
+git push --tags origin master
+git push --all
+
+cd "${PROJECT_ROOT}"
+rm -rf "${GIT_BARE}"

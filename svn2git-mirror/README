@@ -1,0 +1,11 @@
+This script will pull the svn repository from http://trac.aircrack-ng.org/svn
+and will convert it to git.
+
+To transform the svn uids to the git "Firstname Surname <email@address.com>"
+format the authors.txt file is used to map the uids.
+
+On the first run it will take quite a long because it has to process all the revisions.
+Future runs will be quick because it only has to process the new changes.
+
+This script is designed to be executed periodically by cron to automatically mirror the
+aircrack-ng svn repository to github.
