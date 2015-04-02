@@ -1,0 +1,43 @@
+#!/bin/bash
+# Postfix and bc are required and don't forget to make it listen on 127.0.0.1
+# (by default, it listen on all interfaces)
+
+CRITICAL_SPACE="3000" #CRITICAL space in Mb
+DISK_LIST=$(/bin/mount | /bin/grep -G ^/dev/[hs]d[a-z][0-9] | awk '{print $1}')
+[ -z "${DISK_LIST}" ] && DISK_LIST=$(/bin/mount | /bin/grep -G ^/dev/root | /usr/bin/awk '{print $1}')
+LOW_DISK=0
+MAIL_TO_SEND="Critical Free space available on server :"
+MAIL_TO="YOUR_EMAIL_ADDRESS"
+
+for disk in $DISK_LIST
+do
+    TOTALSPACE=$(/bin/df -B 1048576 | /bin/grep $disk | /usr/bin/awk '{ print "scale=1; " $2 "/1024" } ' | /usr/bin/bc -l)
+    FREESPACE=$(/bin/df -B 1048576 | /bin/grep $disk | /usr/bin/awk '{ print $4 }')
+
+    if [ "$FREESPACE" -lt "$CRITICAL_SPACE" ]; then
+
+        # Will send a mail, at least one disk is low
+        LOW_DISK=1
+
+        # Calculate free space
+        FREESPACE=`echo "scale=2;$FREESPACE/1024" | /usr/bin/bc -l`
+
+        # Append it to the mail
+        MAIL_TO_SEND="${MAIL_TO_SEND}\n- $disk : $FREESPACE Gb free on $TOTALSPACE Gb"
+    fi
+done
+
+# Send mail if at least one of the disk is low
+if [ $LOW_DISK -eq 1 ] ; then
+    MAIL_TO_SEND="${MAIL_TO_SEND}\n\nAlert is set to $CRITICAL_SPACE Mb."
+    for email_addr in ${MAIL_TO}
+    do
+        (
+             echo "Subject: WARNING: Low disk space on $HOSTNAME"
+             echo "From: $HOSTNAME <aircrack.ng.alerts@gmail.com>"
+             echo "To: $MAIL_TO"
+             echo ""
+             echo -e $MAIL_TO_SEND
+        ) | /usr/sbin/sendmail $MAIL_TO
+    done
+fi
