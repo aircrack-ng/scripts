@@ -9,7 +9,7 @@ set -e
 MYDIR=$(dirname $(readlink -f $0))
 PROJECT_ROOT="${MYDIR}/aircrack-ng"
 AUTHORS_FILE="${MYDIR}/authors.txt"
-SVN_REPO="http://trac.aircrack-ng.org/svn/"
+SVN_REPO="http://svn.aircrack-ng.org/"
 GIT_REPO="git@github.com:aircrack-ng/aircrack-ng.git"
 SVN_LAYOUT="-T trunk -b branch -t tags"
 
