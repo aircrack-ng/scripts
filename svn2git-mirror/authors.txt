@@ -20,3 +20,4 @@ sorbo = Andrea Bittau <a.bittau@cs.ucl.ac.uk>
 layoyo =  layoyo <dav2000@ifrance.com>
 tylerj = Julian Tyler <tylerj@crm114.net>
 moshe = Moshe Kaplan <moshe@aircrack-ng.org>
+jbenden = Joseph Benden <joe@benden.us>
